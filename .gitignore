@@ -5,3 +5,7 @@ node_modules/
 contracts/out/
 contracts/cache/
 contracts/broadcast/
+.agents/
+.monskills
+skills-lock.json
+
