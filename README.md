@@ -3,13 +3,7 @@
 **Live Application:** [monad-canvas-orcin.vercel.app](https://monad-canvas-orcin.vercel.app/)
 
 ## Demo Video
-<div align="center">
-  <a href="https://www.loom.com/share/11dafcecc65a49ce842b329cf8130fb8">
-    <img src="https://cdn.loom.com/sessions/thumbnails/11dafcecc65a49ce842b329cf8130fb8-with-play.gif" alt="Monad Canvas Demo" width="100%">
-  </a>
-</div>
-
-*(Click the image above to watch the full Loom demo)*
+<div style="position: relative; padding-bottom: 56.25%; height: 0;"><iframe src="https://www.loom.com/embed/11dafcecc65a49ce842b329cf8130fb8" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></iframe></div>
 
 A decentralized 64x64 collaborative pixel canvas on the Monad Testnet. It features an AI-driven semantic engine (powered by Google Gemini) that translates natural language text prompts into precise geometric pixel mutations, which are then permanently recorded on-chain.
 
