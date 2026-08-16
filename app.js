@@ -167,7 +167,8 @@ const App = {
 
         let batchData;
         try {
-            const response = await fetch('http://localhost:3001/api/mutate', {
+            // Using a relative path allows this to work on Vercel as well as locally (if served together)
+            const response = await fetch('/api/mutate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ prompt: promptText })
