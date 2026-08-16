@@ -9,6 +9,9 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
+// Serve static frontend files locally
+app.use(express.static(__dirname));
+
 // Models to try in order (fallback chain)
 const MODEL_CHAIN = [
     'gemini-2.5-flash',

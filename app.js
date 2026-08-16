@@ -77,6 +77,18 @@ const App = {
                 }
             }
             this.renderCanvas();
+            
+            // Sync past activity history
+            const history = await Blockchain.getPastActivity();
+            if (history.length > 0) {
+                const feed = document.getElementById('event-feed');
+                if (feed) {
+                    feed.innerHTML = '<li class="feed-event genesis">AI Genesis Layer Initialized (64×64)</li>';
+                    history.forEach(htmlEvent => {
+                        this.addFeedEvent(htmlEvent);
+                    });
+                }
+            }
         } catch (e) {
             console.warn('Could not sync on-chain state:', e);
         }
