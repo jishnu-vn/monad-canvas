@@ -1,90 +1,119 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Monad Canvas — Collaborative Evolving Art</title>
+    <title>Monad Canvas — AI-Powered On-Chain Art</title>
+    <meta name="description" content="Collaborative evolving pixel art powered by Google Gemini AI and permanently recorded on the Monad blockchain.">
     <link rel="stylesheet" href="index.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
-    <header class="header">
-        <div class="logo">
-            <span class="logo-icon">■</span> Monad Canvas
-        </div>
-        <div class="header-right">
-            <div class="wallet-info" id="wallet-status">Not connected</div>
-            <button id="btn-connect" class="btn">Connect Wallet</button>
-        </div>
-    </header>
 
-    <main class="main">
-        <div class="canvas-section">
-            <div class="canvas-container">
-                <canvas id="pixel-canvas" width="32" height="32"></canvas>
-                <div id="hover-highlight" class="hover-highlight"></div>
-                <div id="selection-highlight" class="selection-highlight"></div>
+    <!-- ===== LANDING SECTION ===== -->
+    <section class="landing" id="landing">
+        <nav class="landing-nav">
+            <div class="logo">
+                <span class="logo-icon">■</span>
+                <span class="logo-text">Monad Canvas</span>
             </div>
-            <div class="canvas-controls">
-                <span class="grid-size">32 × 32</span>
-                <span class="total-pixels">1024 Pixels</span>
+            <button id="theme-toggle" class="btn-icon" title="Toggle Theme">
+                <svg id="moon-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                <svg id="sun-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="display: none;"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+            </button>
+        </nav>
+
+        <div class="landing-hero">
+            <h1 class="landing-title">Art that evolves.<br>Permanently on-chain.</h1>
+            <p class="landing-desc">A collaborative 64×64 pixel canvas powered by <strong>Google Gemini AI</strong>. Describe a mutation in plain English — the AI identifies the exact pixels to transform, then records every change permanently on the <strong>Monad</strong> blockchain.</p>
+            <div class="landing-stats">
+                <div class="stat">
+                    <span class="stat-value">4,096</span>
+                    <span class="stat-label">Pixels</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value">64×64</span>
+                    <span class="stat-label">Resolution</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value">Gemini</span>
+                    <span class="stat-label">AI Engine</span>
+                </div>
             </div>
+            <button id="btn-launch" class="btn primary btn-launch">Open Canvas</button>
         </div>
-        
-        <aside class="sidebar">
-            <div class="sidebar-panel">
-                <h2>Pixel Inspector</h2>
-                <div id="inspector-empty" class="empty-state">
-                    Select a pixel on the canvas to view its state or mutate it.
+    </section>
+
+    <!-- ===== CANVAS APP SECTION ===== -->
+    <section class="app-section" id="app-section" style="display: none;">
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">■</span>
+                <span class="logo-text">Monad Canvas</span>
+            </div>
+            <div class="header-right">
+                <button id="btn-activity" class="btn-icon" title="Activity Feed">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                </button>
+                <div class="wallet-info" id="wallet-status">Not connected</div>
+                <button id="btn-connect" class="btn primary">Connect</button>
+                <button id="theme-toggle-app" class="btn-icon" title="Toggle Theme">
+                    <svg id="moon-icon-app" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                    <svg id="sun-icon-app" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="display: none;"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                </button>
+            </div>
+        </header>
+
+        <main class="main">
+            <div class="canvas-section">
+                <div class="ai-prompt-bar">
+                    <input type="text" id="ai-canvas-prompt" placeholder="Describe a mutation (e.g. 'turn the sky into a dark void with stars')">
+                    <button id="btn-generate-ai" class="btn primary">Mutate</button>
+                </div>
+
+                <div class="canvas-card">
+                    <div class="canvas-container">
+                        <canvas id="pixel-canvas" width="64" height="64"></canvas>
+                        <div id="hover-highlight" class="hover-highlight"></div>
+                    </div>
                 </div>
                 
-                <div id="inspector-content" style="display: none;">
-                    <div class="pixel-preview">
-                        <div id="selected-color-box" class="color-box"></div>
-                        <div class="pixel-coords">
-                            Coordinate<br>
-                            <strong>X: <span id="sel-x">-</span> / Y: <span id="sel-y">-</span></strong>
-                        </div>
+                <!-- Minimal Color-Only Inspector -->
+                <div class="color-inspector" id="color-inspector" style="opacity: 0;">
+                    <div class="inspector-left">
+                        <div class="inspector-swatch" id="sel-color-box"></div>
+                        <span class="inspector-coord" id="inspector-coord-label">—</span>
                     </div>
-                    
-                    <div class="pixel-detail">
-                        <label>Current Owner:</label>
-                        <div id="sel-owner" class="value mono">Genesis</div>
-                    </div>
-                    
-                    <div class="pixel-detail">
-                        <label>Last Prompt:</label>
-                        <div id="sel-prompt" class="value prompt-text">"Initial generation"</div>
-                    </div>
-
-                    <div class="mutation-box">
-                        <h3>Mutate Pixel</h3>
-                        <p class="help-text">Enter a prompt to evolve this pixel. The AI engine will interpret it as a color mutation.</p>
-                        
-                        <div class="input-group">
-                            <input type="text" id="mutation-prompt" placeholder="e.g. 'neon cyber glow'">
-                            <input type="color" id="mutation-color" value="#ff00ff" title="AI Color Override">
-                        </div>
-                        
-                        <button id="btn-mutate" class="btn primary full-width">Sign & Mutate (0 MON)</button>
+                    <div class="inspector-right">
+                        <input type="color" id="mutation-color" value="#000000" title="Pick a color">
+                        <button id="btn-mutate" class="btn-small">Paint</button>
                     </div>
                 </div>
             </div>
-            
-            <div class="sidebar-panel live-feed-panel">
-                <h3>Live Feed</h3>
-                <ul id="event-feed" class="event-feed">
-                    <li class="feed-event genesis">Canvas initialized. Genesis house generation loaded.</li>
-                </ul>
-            </div>
-        </aside>
-    </main>
+        </main>
+    </section>
+
+    <!-- Elegant Activity Drawer -->
+    <div class="activity-drawer" id="activity-drawer">
+        <div class="drawer-header">
+            <h2>Canvas Activity</h2>
+            <button id="btn-close-drawer" class="btn-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
+        <ul class="activity-feed" id="event-feed">
+            <li class="feed-event genesis">AI Genesis Layer Initialized (64×64)</li>
+        </ul>
+    </div>
 
     <!-- Toast Area -->
     <div class="toast-area" id="toast-area"></div>
 
+    <!-- Ethers.js & Engines -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.11.1/ethers.umd.min.js"></script>
+    <script src="ai-engine.js"></script>
     <script src="blockchain.js"></script>
     <script src="app.js"></script>
 </body>
