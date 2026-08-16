@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monad Canvas — Collaborative Evolving Art</title>
+    <link rel="stylesheet" href="index.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="header">
+        <div class="logo">
+            <span class="logo-icon">■</span> Monad Canvas
+        </div>
+        <div class="header-right">
+            <div class="wallet-info" id="wallet-status">Not connected</div>
+            <button id="btn-connect" class="btn">Connect Wallet</button>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="canvas-section">
+            <div class="canvas-container">
+                <canvas id="pixel-canvas" width="32" height="32"></canvas>
+                <div id="hover-highlight" class="hover-highlight"></div>
+                <div id="selection-highlight" class="selection-highlight"></div>
+            </div>
+            <div class="canvas-controls">
+                <span class="grid-size">32 × 32</span>
+                <span class="total-pixels">1024 Pixels</span>
+            </div>
+        </div>
+        
+        <aside class="sidebar">
+            <div class="sidebar-panel">
+                <h2>Pixel Inspector</h2>
+                <div id="inspector-empty" class="empty-state">
+                    Select a pixel on the canvas to view its state or mutate it.
+                </div>
+                
+                <div id="inspector-content" style="display: none;">
+                    <div class="pixel-preview">
+                        <div id="selected-color-box" class="color-box"></div>
+                        <div class="pixel-coords">
+                            Coordinate<br>
+                            <strong>X: <span id="sel-x">-</span> / Y: <span id="sel-y">-</span></strong>
+                        </div>
+                    </div>
+                    
+                    <div class="pixel-detail">
+                        <label>Current Owner:</label>
+                        <div id="sel-owner" class="value mono">Genesis</div>
+                    </div>
+                    
+                    <div class="pixel-detail">
+                        <label>Last Prompt:</label>
+                        <div id="sel-prompt" class="value prompt-text">"Initial generation"</div>
+                    </div>
+
+                    <div class="mutation-box">
+                        <h3>Mutate Pixel</h3>
+                        <p class="help-text">Enter a prompt to evolve this pixel. The AI engine will interpret it as a color mutation.</p>
+                        
+                        <div class="input-group">
+                            <input type="text" id="mutation-prompt" placeholder="e.g. 'neon cyber glow'">
+                            <input type="color" id="mutation-color" value="#ff00ff" title="AI Color Override">
+                        </div>
+                        
+                        <button id="btn-mutate" class="btn primary full-width">Sign & Mutate (0 MON)</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="sidebar-panel live-feed-panel">
+                <h3>Live Feed</h3>
+                <ul id="event-feed" class="event-feed">
+                    <li class="feed-event genesis">Canvas initialized. Genesis house generation loaded.</li>
+                </ul>
+            </div>
+        </aside>
+    </main>
+
+    <!-- Toast Area -->
+    <div class="toast-area" id="toast-area"></div>
+
+    <script src="blockchain.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
