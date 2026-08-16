@@ -11,14 +11,20 @@ const MonadChain = {
 };
 
 const EXPLORER_TX_URL = 'https://testnet.monadscan.com/tx/';
+const CONTRACT_ADDRESS = '0xa9B4f9B4E2646A8e0D1767d4bC0928A763eF1D00';
+const CONTRACT_ABI = [
+    "function mutatePixel(uint8 x, uint8 y, bytes3 color, string prompt)",
+    "function mutatePixelBatch(uint8[] xs, uint8[] ys, bytes3[] colors, string[] prompts)",
+    "function getCanvasState() view returns (bytes3[4096] colors, address[4096] owners)",
+    "event PixelMutated(uint8 indexed x, uint8 indexed y, bytes3 color, address indexed mutator, string prompt, uint256 timestamp)",
+    "event BatchPixelMutated(uint256 count, address indexed mutator, uint256 timestamp)"
+];
 
 const Blockchain = {
     connected: false,
     address: null,
     balance: null,
     chainOk: false,
-    latestBlock: null,
-    blockListeners: [],
 
     /** Auto check if wallet is already connected */
     async checkAutoConnect() {
@@ -32,7 +38,6 @@ const Blockchain = {
                 this.chainOk = chainId === MonadChain.chainId;
                 await this.updateBalance();
                 this.setupListeners();
-                this.updateWalletUI();
             }
         } catch (e) {
             console.warn('Auto-connect check failed:', e);
@@ -45,7 +50,6 @@ const Blockchain = {
         this.address = null;
         this.balance = null;
         this.chainOk = false;
-        this.updateWalletUI();
     },
 
     /** Attempt to connect wallet via window.ethereum (MetaMask etc.) */
@@ -81,7 +85,6 @@ const Blockchain = {
 
             await this.updateBalance();
             this.setupListeners();
-            this.updateWalletUI();
 
             return { ok: true, address: this.address, chainOk: this.chainOk };
         } catch (err) {
@@ -98,52 +101,22 @@ const Blockchain = {
 
         window.ethereum.on('accountsChanged', (accounts) => {
             if (accounts.length === 0) {
-                this.connected = false;
-                this.address = null;
-                this.balance = null;
-                this.updateWalletUI();
+                this.disconnect();
+                if (window.App) window.App.updateWalletUI();
             } else {
                 this.address = accounts[0];
-                this.updateBalance();
-                this.updateWalletUI();
+                this.updateBalance().then(() => {
+                    if (window.App) window.App.updateWalletUI();
+                });
             }
         });
 
         window.ethereum.on('chainChanged', (chainId) => {
             this.chainOk = chainId === MonadChain.chainId;
-            this.updateBalance();
-            this.updateWalletUI();
+            this.updateBalance().then(() => {
+                if (window.App) window.App.updateWalletUI();
+            });
         });
-    },
-
-    /** Update displayed wallet info */
-    updateWalletUI() {
-        const statusEl = document.getElementById('wallet-status');
-        const connectBtn = document.getElementById('btn-connect-wallet');
-        if (!statusEl) return;
-
-        if (this.connected) {
-            let text = this.shortAddress(this.address);
-            if (this.balance !== null) {
-                text += ' · ' + this.balance + ' MON';
-            }
-            if (!this.chainOk) {
-                text += ' (Wrong network)';
-            }
-            statusEl.textContent = text;
-            statusEl.classList.add('connected');
-            if (connectBtn) {
-                connectBtn.innerHTML = '<span class="wallet-dot"></span>' + text;
-                connectBtn.classList.add('connected');
-            }
-        } else {
-            statusEl.textContent = 'Connect wallet to evolve your art on-chain';
-            statusEl.classList.remove('connected');
-            if (connectBtn) {
-                connectBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><circle cx="17" cy="14" r="1.5"/></svg> Connect Wallet';
-                connectBtn.classList.remove('connected');
-            }
-        }
     },
 
     /** Fetch and store MON balance */
@@ -195,54 +168,48 @@ const Blockchain = {
         return addr.slice(0, 6) + '\u2026' + addr.slice(-4);
     },
 
-    /** Convert a string to 0x-prefixed hex */
-    stringToHex(str) {
-        let hex = '0x';
-        for (let i = 0; i < str.length; i++) {
-            hex += str.charCodeAt(i).toString(16).padStart(2, '0');
-        }
-        return hex;
-    },
-
     /** Build explorer link */
     explorerLink(txHash) {
         return EXPLORER_TX_URL + txHash;
     },
 
+    /* ── Smart Contract Interactions ── */
+
     /**
-     * Send a 0-value self-transaction to record art evolution data on Monad.
+     * Fetch the full canvas state from the deployed smart contract.
      */
-    async sendArtTransaction(dataString) {
-        if (!window.ethereum) {
-            console.warn('No wallet detected for transaction');
+    async getCanvasState() {
+        if (!window.ethers) {
+            console.error('ethers.js not loaded!');
+            throw new Error('ethers.js not loaded');
+        }
+        
+        try {
+            // Using a public provider since this is a read-only call
+            const provider = new ethers.JsonRpcProvider(MonadChain.rpcUrls[0]);
+            const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+            
+            console.log('Fetching on-chain canvas state...');
+            const result = await contract.getCanvasState();
+            return result; // [colors, owners]
+        } catch (err) {
+            console.error('Failed to get canvas state:', err);
+            throw err;
+        }
+    },
+
+    /**
+     * Mutate a single pixel on the real smart contract using Ethers.js
+     */
+    async mutatePixelOnChain(x, y, colorHex, promptText) {
+        if (!window.ethereum || !window.ethers) {
+            console.warn('No wallet or ethers detected for transaction');
             return null;
         }
 
-        if (!this.address) {
-            try {
-                const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-                if (accounts && accounts.length > 0) {
-                    this.address = accounts[0];
-                    this.connected = true;
-                }
-            } catch (e) {
-                console.warn('eth_accounts failed:', e);
-            }
-        }
-
         if (!this.connected || !this.address) {
-            try {
-                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-                if (accounts && accounts.length > 0) {
-                    this.address = accounts[0];
-                    this.connected = true;
-                } else {
-                    return null;
-                }
-            } catch (err) {
-                console.warn('Wallet connect prompt rejected:', err);
-                return null;
-            }
+            const result = await this.connect();
+            if (!result.ok) return null;
         }
 
         try {
@@ -251,137 +218,80 @@ const Blockchain = {
             console.warn('switchToMonad threw:', e);
         }
 
-        const hexData = this.stringToHex(dataString);
-        console.log('Dispatching Art TX to MetaMask...', { from: this.address, data: hexData });
-
         try {
-            const txParams = {
-                to: this.address,
-                value: '0x0',
-                data: hexData,
-                gas: '0x7530' // 30,000 gas limit. CRITICAL FOR MONAD: Prevents overcharging/failure since Monad charges on gas limit, not gas used.
-            };
-            if (this.address) txParams.from = this.address;
+            const provider = new ethers.BrowserProvider(window.ethereum);
+            const signer = await provider.getSigner();
+            const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
 
-            const txHash = await window.ethereum.request({
-                method: 'eth_sendTransaction',
-                params: [txParams]
+            const colorBytes3 = colorHex.replace('#', '0x');
+            
+            console.log(`Dispatching mutatePixel tx: x=${x}, y=${y}, color=${colorBytes3}`);
+            
+            const tx = await contract.mutatePixel(x, y, colorBytes3, promptText, {
+                gasLimit: 200000 // Monad best practice
             });
-
-            console.log('Monad Art TX sent:', txHash, this.explorerLink(txHash));
+            
+            console.log('Monad Art TX sent:', tx.hash, this.explorerLink(tx.hash));
+            await tx.wait(); // Wait for it to be mined
+            
             setTimeout(() => this.updateBalance(), 3000);
-
-            return { txHash, explorerUrl: this.explorerLink(txHash) };
+            return { txHash: tx.hash, explorerUrl: this.explorerLink(tx.hash) };
         } catch (err) {
-            if (err.code === 4001) {
+            if (err.code === 'ACTION_REJECTED' || err.code === 4001) {
                 console.log('User explicitly rejected transaction in MetaMask');
                 return null;
             }
-
-            console.warn('eth_sendTransaction failed:', err);
+            console.warn('mutatePixel failed:', err);
             return null;
         }
     },
 
-    /* ── Art-Specific Transaction Records ── */
-
-    /** Record a mutation event */
-    async recordMutation(artId, mutationType, traitsBefore, traitsAfter) {
-        const data = 'MonadArt Mutation | Art: ' + artId +
-            ' | Type: ' + mutationType +
-            ' | Before: ' + JSON.stringify(traitsBefore) +
-            ' | After: ' + JSON.stringify(traitsAfter) +
-            ' | Wallet: ' + (this.address || 'anon') +
-            ' | Time: ' + new Date().toISOString();
-        return this.sendArtTransaction(data);
-    },
-
-    /** Record a community vote */
-    async recordVote(artId, voteOption, totalVotes) {
-        const data = 'MonadArt Vote | Art: ' + artId +
-            ' | Choice: ' + voteOption +
-            ' | Total Votes: ' + totalVotes +
-            ' | Voter: ' + (this.address || 'anon') +
-            ' | Time: ' + new Date().toISOString();
-        return this.sendArtTransaction(data);
-    },
-
-    /** Record art minting */
-    async recordMint(artId, traits) {
-        const data = 'MonadArt Mint | Art: ' + artId +
-            ' | Traits: ' + JSON.stringify(traits) +
-            ' | Minter: ' + (this.address || 'anon') +
-            ' | Time: ' + new Date().toISOString();
-        return this.sendArtTransaction(data);
-    },
-
-    /** Record oracle-triggered evolution */
-    async recordOracleEvolution(artId, oracleType, oracleValue, mutation) {
-        const data = 'MonadArt Oracle | Art: ' + artId +
-            ' | Oracle: ' + oracleType +
-            ' | Value: ' + oracleValue +
-            ' | Mutation: ' + mutation +
-            ' | Time: ' + new Date().toISOString();
-        return this.sendArtTransaction(data);
-    },
-
-    /** Record holder action on art */
-    async recordHolderAction(artId, actionType, details) {
-        const data = 'MonadArt Action | Art: ' + artId +
-            ' | Action: ' + actionType +
-            ' | Details: ' + details +
-            ' | Holder: ' + (this.address || 'anon') +
-            ' | Time: ' + new Date().toISOString();
-        return this.sendArtTransaction(data);
-    },
-
     /**
-     * Fetch latest Monad block number (used to drive art evolution).
+     * Batch Mutate an array of pixels (Semantic Area Mutation)
      */
-    async getLatestBlock() {
+    async mutatePixelBatchOnChain(xs, ys, colors, prompts) {
+        if (!window.ethereum || !window.ethers) {
+            console.warn('No wallet or ethers detected for transaction');
+            return null;
+        }
+
+        if (!this.connected || !this.address) {
+            const result = await this.connect();
+            if (!result.ok) return null;
+        }
+
         try {
-            const response = await fetch(MonadChain.rpcUrls[0], {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    jsonrpc: '2.0',
-                    method: 'eth_blockNumber',
-                    params: [],
-                    id: 1
-                })
-            });
-            const data = await response.json();
-            if (data.result) {
-                this.latestBlock = parseInt(data.result, 16);
-                return this.latestBlock;
-            }
+            await this.switchToMonad();
+        } catch (e) {
+            console.warn('switchToMonad threw:', e);
+        }
+
+        try {
+            const provider = new ethers.BrowserProvider(window.ethereum);
+            const signer = await provider.getSigner();
+            const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+
+            // Convert Hex Colors to Bytes3
+            const bytesColors = colors.map(c => c.replace('#', '0x'));
+            
+            console.log(`Dispatching mutatePixelBatch tx for ${xs.length} pixels...`);
+            
+            const tx = await contract.mutatePixelBatch(xs, ys, bytesColors, prompts);
+            
+            console.log('Monad Batch TX sent:', tx.hash, this.explorerLink(tx.hash));
+            await tx.wait(); // Wait for it to be mined
+            
+            setTimeout(() => this.updateBalance(), 3000);
+            return { txHash: tx.hash, explorerUrl: this.explorerLink(tx.hash) };
         } catch (err) {
-            // Silently fail
-        }
-        return null;
-    },
-
-    /**
-     * Poll blocks to drive art evolution.
-     * Calls registered listeners when new block arrives.
-     */
-    startBlockPolling(intervalMs = 5000) {
-        this._blockPollInterval = setInterval(async () => {
-            const block = await this.getLatestBlock();
-            if (block !== null) {
-                this.blockListeners.forEach(fn => fn(block));
+            if (err.code === 'ACTION_REJECTED' || err.code === 4001) {
+                console.log('User explicitly rejected batch transaction in MetaMask');
+                return null;
             }
-        }, intervalMs);
-    },
-
-    stopBlockPolling() {
-        if (this._blockPollInterval) {
-            clearInterval(this._blockPollInterval);
-            this._blockPollInterval = null;
+            console.warn('mutatePixelBatch failed:', err);
+            throw err;
         }
-    },
-
-    onNewBlock(callback) {
-        this.blockListeners.push(callback);
     }
 };
+
+window.Blockchain = Blockchain;

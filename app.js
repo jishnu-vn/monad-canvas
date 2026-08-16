@@ -2,313 +2,301 @@
    MONAD CANVAS — Application Logic
    ============================================= */
 
-const CANVAS_SIZE = 32;
+const CANVAS_SIZE = 64;
 
 const App = {
     canvas: null,
     ctx: null,
     pixels: [],
-    selectedPixel: null, // {x, y, index}
+    selectedPixel: null,
     
     async init() {
+        // Landing page transition
+        document.getElementById('btn-launch').addEventListener('click', () => {
+            document.getElementById('landing').style.display = 'none';
+            document.getElementById('app-section').style.display = 'flex';
+            this.startCanvas();
+        });
+
+        // Theme toggles (both landing and app)
+        this.bindThemeToggle('theme-toggle', 'moon-icon', 'sun-icon');
+        this.bindThemeToggle('theme-toggle-app', 'moon-icon-app', 'sun-icon-app');
+    },
+
+    async startCanvas() {
         this.canvas = document.getElementById('pixel-canvas');
         this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
         
-        this.showToast('Generating AI Genesis Art... (takes a few seconds)', 'info');
-        await this.generateAIGenesis('retro 8bit pixel art of a cozy little house with green grass and blue sky');
-        
-        this.bindEvents();
-        
-        Blockchain.checkAutoConnect().then(() => {
-            this.updateWalletUI();
+        this.generateBaseScenery();
+        await this.syncOnChainState();
+        this.bindAppEvents();
+        Blockchain.checkAutoConnect().then(() => this.updateWalletUI());
+    },
+
+    bindThemeToggle(toggleId, moonId, sunId) {
+        const toggle = document.getElementById(toggleId);
+        if (!toggle) return;
+        toggle.addEventListener('click', () => {
+            const html = document.documentElement;
+            const isDark = html.getAttribute('data-theme') === 'dark';
+            html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+            
+            // Sync all icon pairs
+            ['moon-icon', 'moon-icon-app'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.style.display = isDark ? 'block' : 'none';
+            });
+            ['sun-icon', 'sun-icon-app'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.style.display = isDark ? 'none' : 'block';
+            });
         });
     },
 
-    // ── Generate the initial 32x32 art via AI ──
-    async generateAIGenesis(prompt) {
+    generateBaseScenery() {
         try {
-            const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=64&height=64&nologo=true&seed=42`;
-            console.log('Fetching AI Genesis from:', url);
-            
-            const response = await fetch(url);
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            
-            const blob = await response.blob();
-            const imgUrl = URL.createObjectURL(blob);
-            
-            return new Promise((resolve) => {
-                const img = new Image();
-                img.onload = () => {
-                    const offscreen = document.createElement('canvas');
-                    offscreen.width = CANVAS_SIZE;
-                    offscreen.height = CANVAS_SIZE;
-                    const offCtx = offscreen.getContext('2d');
-                    offCtx.drawImage(img, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
-                    
-                    const imageData = offCtx.getImageData(0, 0, CANVAS_SIZE, CANVAS_SIZE).data;
-                    
-                    this.pixels = new Array(CANVAS_SIZE * CANVAS_SIZE);
-                    for (let i = 0; i < this.pixels.length; i++) {
-                        const r = imageData[i * 4];
-                        const g = imageData[i * 4 + 1];
-                        const b = imageData[i * 4 + 2];
-                        const hex = "#" + (1 << 24 | r << 16 | g << 8 | b).toString(16).slice(1);
-                        
-                        this.pixels[i] = {
-                            color: hex,
-                            owner: 'Genesis AI',
-                            prompt: 'Base: ' + prompt
-                        };
-                    }
-                    
-                    this.renderCanvas();
-                    this.showToast('AI Genesis Art Loaded!', 'success');
-                    URL.revokeObjectURL(imgUrl);
-                    resolve();
-                };
-                img.onerror = (e) => {
-                    console.error("Image decode failed:", e);
-                    throw new Error("Failed to decode AI image");
-                };
-                img.src = imgUrl;
-            });
-        } catch (error) {
-            console.error("AI Generation failed:", error);
-            this.showToast('AI generation failed. Loading fallback.', 'error');
-            this.initFallbackState();
+            this.pixels = AIEngine.generateBaseScenery(CANVAS_SIZE);
             this.renderCanvas();
+        } catch (err) {
+            console.error('AI Genesis synthesis failed:', err);
         }
     },
 
-    initFallbackState() {
-        this.pixels = new Array(CANVAS_SIZE * CANVAS_SIZE);
-        for (let i = 0; i < this.pixels.length; i++) {
-            const x = i % CANVAS_SIZE;
-            const y = Math.floor(i / CANVAS_SIZE);
-            let color = '#87CEEB'; // Sky blue
-            
-            // Grass
-            if (y > 22) color = '#228B22';
-            
-            // House base (x: 10 to 22, y: 14 to 22)
-            if (x >= 10 && x <= 22 && y >= 14 && y <= 22) color = '#D2B48C';
-            
-            // Roof (triangle)
-            if (y >= 8 && y < 14) {
-                const width = (y - 8) * 1.5;
-                if (Math.abs(x - 16) <= width) color = '#B22222';
+    async syncOnChainState() {
+        try {
+            const [colors, owners] = await Blockchain.getCanvasState();
+            for (let i = 0; i < this.pixels.length; i++) {
+                const rawColor = colors[i];
+                if (rawColor && rawColor !== '0x000000' && rawColor !== '0x' && rawColor !== '0x0000000000000000000000000000000000000000000000000000000000000000') {
+                    const colorHex = rawColor.length === 8 ? '#' + rawColor.slice(2) : rawColor.replace('0x', '#');
+                    this.pixels[i] = {
+                        color: colorHex,
+                        owner: owners[i],
+                        prompt: 'Mutated on Monad'
+                    };
+                }
             }
-            
-            // Door
-            if (x >= 14 && x <= 17 && y >= 18 && y <= 22) color = '#8B4513';
-            
-            // Window
-            if (x >= 19 && x <= 21 && y >= 15 && y <= 17) color = '#ADD8E6';
-            
-            // Sun
-            if (x >= 4 && x <= 7 && y >= 3 && y <= 6) color = '#FFD700';
-
-            this.pixels[i] = {
-                color: color,
-                owner: 'Genesis',
-                prompt: 'Initial generation'
-            };
+            this.renderCanvas();
+        } catch (e) {
+            console.warn('Could not sync on-chain state:', e);
         }
     },
 
-    // ── Render the 32x32 array to the canvas ──
     renderCanvas() {
+        if (!this.ctx) return;
         for (let i = 0; i < this.pixels.length; i++) {
             const x = i % CANVAS_SIZE;
             const y = Math.floor(i / CANVAS_SIZE);
-            this.ctx.fillStyle = this.pixels[i].color;
+            this.ctx.fillStyle = this.pixels[i].color || '#000000';
             this.ctx.fillRect(x, y, 1, 1);
         }
     },
 
-    // ── Interactions ──
-    bindEvents() {
-        // Wallet connect
+    bindAppEvents() {
+        // Activity Drawer
+        const drawer = document.getElementById('activity-drawer');
+        const btnActivity = document.getElementById('btn-activity');
+        const btnCloseDrawer = document.getElementById('btn-close-drawer');
+        if (btnActivity) btnActivity.addEventListener('click', () => drawer.classList.add('open'));
+        if (btnCloseDrawer) btnCloseDrawer.addEventListener('click', () => drawer.classList.remove('open'));
+
+        // Wallet
         document.getElementById('btn-connect').addEventListener('click', async () => {
-            const btn = document.getElementById('btn-connect');
-            btn.textContent = 'Connecting...';
+            document.getElementById('btn-connect').textContent = '...';
             await Blockchain.connect(true);
             this.updateWalletUI();
         });
 
+        // AI Region Mutation
+        const aiPromptInput = document.getElementById('ai-canvas-prompt');
+        const aiGenerateBtn = document.getElementById('btn-generate-ai');
+        const triggerAI = () => {
+            const val = aiPromptInput.value.trim();
+            if (val) this.mutateRegion(val);
+        };
+        if (aiGenerateBtn) aiGenerateBtn.addEventListener('click', triggerAI);
+        if (aiPromptInput) aiPromptInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') triggerAI(); });
+
         // Canvas interactions
         const container = document.querySelector('.canvas-container');
-        const hoverHighlight = document.getElementById('hover-highlight');
-        const selectionHighlight = document.getElementById('selection-highlight');
+        const hoverHL = document.getElementById('hover-highlight');
 
         container.addEventListener('mousemove', (e) => {
             const rect = this.canvas.getBoundingClientRect();
-            // Scale mouse position to 32x32 grid
-            const scaleX = CANVAS_SIZE / rect.width;
-            const scaleY = CANVAS_SIZE / rect.height;
-            
-            let x = Math.floor((e.clientX - rect.left) * scaleX);
-            let y = Math.floor((e.clientY - rect.top) * scaleY);
-            
-            // Clamp
+            let x = Math.floor((e.clientX - rect.left) * (CANVAS_SIZE / rect.width));
+            let y = Math.floor((e.clientY - rect.top) * (CANVAS_SIZE / rect.height));
             x = Math.max(0, Math.min(CANVAS_SIZE - 1, x));
             y = Math.max(0, Math.min(CANVAS_SIZE - 1, y));
-
-            // Move hover highlight box
             const boxSize = rect.width / CANVAS_SIZE;
-            hoverHighlight.style.display = 'block';
-            hoverHighlight.style.width = `${boxSize}px`;
-            hoverHighlight.style.height = `${boxSize}px`;
-            hoverHighlight.style.left = `${x * boxSize}px`;
-            hoverHighlight.style.top = `${y * boxSize}px`;
+            hoverHL.style.display = 'block';
+            hoverHL.style.width = `${boxSize}px`;
+            hoverHL.style.height = `${boxSize}px`;
+            hoverHL.style.left = `${x * boxSize}px`;
+            hoverHL.style.top = `${y * boxSize}px`;
         });
-
-        container.addEventListener('mouseleave', () => {
-            hoverHighlight.style.display = 'none';
-        });
-
+        container.addEventListener('mouseleave', () => hoverHL.style.display = 'none');
         container.addEventListener('click', (e) => {
             const rect = this.canvas.getBoundingClientRect();
-            const scaleX = CANVAS_SIZE / rect.width;
-            const scaleY = CANVAS_SIZE / rect.height;
-            
-            const x = Math.floor((e.clientX - rect.left) * scaleX);
-            const y = Math.floor((e.clientY - rect.top) * scaleY);
-            
+            const x = Math.floor((e.clientX - rect.left) * (CANVAS_SIZE / rect.width));
+            const y = Math.floor((e.clientY - rect.top) * (CANVAS_SIZE / rect.height));
             this.selectPixel(x, y);
         });
 
-        // Mutate button
-        document.getElementById('btn-mutate').addEventListener('click', () => this.mutatePixel());
+        // Paint single pixel
+        document.getElementById('btn-mutate').addEventListener('click', () => this.paintSinglePixel());
+        
+        // Also paint when color picker changes (instant feedback)
+        document.getElementById('mutation-color').addEventListener('input', (e) => {
+            if (this.selectedPixel) {
+                document.getElementById('sel-color-box').style.backgroundColor = e.target.value;
+            }
+        });
     },
 
-    selectPixel(x, y) {
-        // Keep highlight fixed
-        const rect = this.canvas.getBoundingClientRect();
-        const boxSize = rect.width / CANVAS_SIZE;
-        const selectionHighlight = document.getElementById('selection-highlight');
-        selectionHighlight.style.display = 'block';
-        selectionHighlight.style.width = `${boxSize}px`;
-        selectionHighlight.style.height = `${boxSize}px`;
-        selectionHighlight.style.left = `${x * boxSize}px`;
-        selectionHighlight.style.top = `${y * boxSize}px`;
-
-        const index = y * CANVAS_SIZE + x;
-        this.selectedPixel = { x, y, index };
-        
-        const pixel = this.pixels[index];
-
-        document.getElementById('inspector-empty').style.display = 'none';
-        document.getElementById('inspector-content').style.display = 'block';
-        
-        document.getElementById('sel-x').textContent = x;
-        document.getElementById('sel-y').textContent = y;
-        document.getElementById('selected-color-box').style.backgroundColor = pixel.color;
-        document.getElementById('sel-owner').textContent = pixel.owner === 'Genesis' ? 'Genesis' : Blockchain.shortAddress(pixel.owner);
-        document.getElementById('sel-prompt').textContent = `"${pixel.prompt}"`;
-        
-        // Reset inputs
-        document.getElementById('mutation-prompt').value = '';
-        document.getElementById('mutation-color').value = pixel.color;
-    },
-
-    async mutatePixel() {
-        if (!this.selectedPixel) return;
-        
+    async mutateRegion(promptText) {
         if (!Blockchain.connected) {
-            this.showToast('Please connect wallet first', 'error');
+            this.showToast('Please connect wallet', 'error');
             await Blockchain.connect(true);
             this.updateWalletUI();
             if (!Blockchain.connected) return;
         }
 
-        const promptInput = document.getElementById('mutation-prompt').value.trim();
-        const colorInput = document.getElementById('mutation-color').value;
-        const promptText = promptInput || 'Manual color override';
+        const btn = document.getElementById('btn-generate-ai');
+        btn.disabled = true;
+        btn.textContent = 'Thinking...';
 
+        let batchData;
+        try {
+            const response = await fetch('http://localhost:3001/api/mutate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt: promptText })
+            });
+            if (!response.ok) {
+                const errJson = await response.json();
+                throw new Error(errJson.error || 'Server error');
+            }
+            batchData = await response.json();
+        } catch (err) {
+            console.error(err);
+            this.showToast('AI Error: ' + err.message, 'error');
+            btn.disabled = false;
+            btn.textContent = 'Mutate';
+            return;
+        }
+
+        if (!batchData || batchData.regionSize === 0) {
+            this.showToast('AI could not identify a valid region', 'error');
+            btn.disabled = false;
+            btn.textContent = 'Mutate';
+            return;
+        }
+
+        btn.textContent = 'Signing...';
+
+        try {
+            const result = await Blockchain.mutatePixelBatchOnChain(batchData.xs, batchData.ys, batchData.colors, batchData.prompts);
+            if (result) {
+                for (let i = 0; i < batchData.regionSize; i++) {
+                    const px = batchData.xs[i];
+                    const py = batchData.ys[i];
+                    this.pixels[py * CANVAS_SIZE + px] = {
+                        color: batchData.colors[i],
+                        owner: Blockchain.address,
+                        prompt: promptText
+                    };
+                }
+                this.renderCanvas();
+                this.showToast(`Mutated ${batchData.regionSize} pixels`);
+                this.addFeedEvent(`<b>${Blockchain.shortAddress(Blockchain.address)}</b> mutated region: "${promptText}"`);
+                document.getElementById('ai-canvas-prompt').value = '';
+            }
+        } catch (err) {
+            this.showToast('Transaction failed', 'error');
+        }
+        btn.disabled = false;
+        btn.textContent = 'Mutate';
+    },
+
+    selectPixel(x, y) {
+        const index = y * CANVAS_SIZE + x;
+        this.selectedPixel = { x, y, index };
+        const pixel = this.pixels[index] || { color: '#000000' };
+
+        const inspector = document.getElementById('color-inspector');
+        inspector.style.opacity = '1';
+        
+        document.getElementById('sel-color-box').style.backgroundColor = pixel.color;
+        document.getElementById('inspector-coord-label').textContent = `(${x}, ${y})`;
+        document.getElementById('mutation-color').value = pixel.color;
+    },
+
+    async paintSinglePixel() {
+        if (!this.selectedPixel) return;
+        if (!Blockchain.connected) {
+            this.showToast('Please connect wallet', 'error');
+            await Blockchain.connect(true);
+            this.updateWalletUI();
+            if (!Blockchain.connected) return;
+        }
+
+        const colorVal = document.getElementById('mutation-color').value;
         const { x, y, index } = this.selectedPixel;
         const btn = document.getElementById('btn-mutate');
         
         btn.disabled = true;
-        btn.textContent = 'Approve in MetaMask...';
+        btn.textContent = '...';
 
-        // Fake AI translation of prompt to color (if prompt is provided and color isn't changed manually, we'd normally do this on backend)
-        // Here we just accept the color input from the UI.
-        
-        const dataString = `MonadCanvas | Mutate X:${x} Y:${y} | Color: ${colorInput} | Prompt: ${promptText}`;
-        
-        const result = await Blockchain.sendArtTransaction(dataString);
-        
-        if (result) {
-            // Success! Update local state
-            this.pixels[index] = {
-                color: colorInput,
-                owner: Blockchain.address,
-                prompt: promptText
-            };
-            
-            // Re-render single pixel
-            this.ctx.fillStyle = colorInput;
-            this.ctx.fillRect(x, y, 1, 1);
-            
-            // Update UI
-            this.selectPixel(x, y);
-            this.showToast('Pixel mutated successfully!', 'success');
-            this.addFeedEvent(`Pixel [${x},${y}] mutated by ${Blockchain.shortAddress(Blockchain.address)}`, result.explorerUrl);
-        } else {
-            this.showToast('Transaction failed or cancelled. Ensure you have testnet MON for gas.', 'error');
+        try {
+            const result = await Blockchain.mutatePixelOnChain(x, y, colorVal, 'Color paint');
+            if (result) {
+                this.pixels[index] = { color: colorVal, owner: Blockchain.address, prompt: 'Color paint' };
+                this.ctx.fillStyle = colorVal;
+                this.ctx.fillRect(x, y, 1, 1);
+                this.selectPixel(x, y);
+                this.showToast('Pixel painted');
+                this.addFeedEvent(`<b>${Blockchain.shortAddress(Blockchain.address)}</b> painted (${x}, ${y}) → ${colorVal}`);
+            }
+        } catch (err) {
+            this.showToast('Paint failed', 'error');
         }
 
         btn.disabled = false;
-        btn.textContent = 'Sign & Mutate (0 MON)';
+        btn.textContent = 'Paint';
     },
 
     updateWalletUI() {
         const info = document.getElementById('wallet-status');
         const btn = document.getElementById('btn-connect');
-        
         if (Blockchain.connected) {
-            info.textContent = Blockchain.shortAddress(Blockchain.address);
+            info.textContent = Blockchain.shortAddress(Blockchain.address) + (Blockchain.balance ? ` · ${Blockchain.balance} MON` : '');
             info.classList.add('connected');
             btn.style.display = 'none';
         } else {
             info.textContent = 'Not connected';
             info.classList.remove('connected');
             btn.style.display = 'block';
-            btn.textContent = 'Connect Wallet';
-        }
-    },
-
-    addFeedEvent(text, url) {
-        const feed = document.getElementById('event-feed');
-        const li = document.createElement('li');
-        li.className = 'feed-event';
-        
-        const time = new Date().toLocaleTimeString();
-        
-        if (url) {
-            li.innerHTML = `<span class="feed-time">${time}</span><a href="${url}" target="_blank">${text}</a>`;
-        } else {
-            li.innerHTML = `<span class="feed-time">${time}</span>${text}`;
-        }
-        
-        feed.prepend(li);
-        
-        // Keep max 20 events
-        if (feed.children.length > 20) {
-            feed.removeChild(feed.lastChild);
+            btn.textContent = 'Connect';
         }
     },
 
     showToast(msg, type = '') {
         const area = document.getElementById('toast-area');
+        if (!area) return;
         const t = document.createElement('div');
         t.className = `toast ${type}`;
         t.textContent = msg;
         area.appendChild(t);
-        setTimeout(() => {
-            if (t.parentNode) t.remove();
-        }, 3500);
+        setTimeout(() => t.remove(), 3600);
+    },
+
+    addFeedEvent(htmlContent) {
+        const feed = document.getElementById('event-feed');
+        if (!feed) return;
+        const li = document.createElement('li');
+        li.className = 'feed-event';
+        li.innerHTML = htmlContent;
+        feed.prepend(li);
     }
 };
 
