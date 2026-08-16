@@ -195,43 +195,6 @@ const Blockchain = {
         } catch (err) {
             console.error('Failed to get canvas state:', err);
             throw err;
-    },
-
-    /**
-     * Fetch past mutation events from the smart contract
-     */
-    async getPastActivity() {
-        if (!window.ethers) return [];
-        try {
-            const provider = new ethers.JsonRpcProvider(MonadChain.rpcUrls[0]);
-            const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
-            
-            console.log('Fetching on-chain activity history...');
-            const pixelFilter = contract.filters.PixelMutated();
-            const batchFilter = contract.filters.BatchPixelMutated();
-            
-            // Query the last ~50,000 blocks to avoid RPC limits
-            const [pixelEvents, batchEvents] = await Promise.all([
-                contract.queryFilter(pixelFilter, -50000, "latest").catch(() => []),
-                contract.queryFilter(batchFilter, -50000, "latest").catch(() => [])
-            ]);
-            
-            // Sort by block number ascending
-            const events = [...pixelEvents, ...batchEvents].sort((a, b) => a.blockNumber - b.blockNumber);
-            
-            return events.map(e => {
-                if (e.fragment.name === 'PixelMutated') {
-                    const { x, y, color, mutator } = e.args;
-                    const hexColor = (color.length === 8) ? '#' + color.slice(2) : color.replace('0x', '#');
-                    return `<b>${this.shortAddress(mutator)}</b> painted (${x}, ${y}) → <span style="display:inline-block;width:12px;height:12px;background:${hexColor};border-radius:2px;vertical-align:middle;border:1px solid #ddd"></span>`;
-                } else {
-                    const { count, mutator } = e.args;
-                    return `<b>${this.shortAddress(mutator)}</b> mutated a region (${count} pixels)`;
-                }
-            });
-        } catch (err) {
-            console.warn('Failed to fetch past activity:', err);
-            return [];
         }
     },
 
